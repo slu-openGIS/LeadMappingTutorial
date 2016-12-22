@@ -1,0 +1,139 @@
+---
+title: "Lead Testing Results for the City of St. Louis"
+author: Christopher Prener, Ph.D.
+date: December 22, 2016
+output:
+  pdf_document: default
+  html_notebook: default
+---
+
+## Introduction
+This tutorial introduces a number of skills related to mapping data in `R`: data cleaning, table joins, and map production. `R` is not a replacement for a GIS like ArcGIS or QGIS. However, its mapping tools are useful for previewing data and creating quick maps, particularly of quantitative data. `R` is also particularly useful for its spatial statistics tools. 
+
+## Packages
+The following tutorial requires a number of packages from the `tidyverse` as well as other packages that facilitate mapping. If you need any of these packages, use the `install.packages("packageName")` function.
+
+Note that you also need to have the package `rgeos` installed. It does not have to be loaded for this tutorial to work, but it must be present. Re-start RStudio after installing this package to ensure that you do not get any errors.
+
+```{r}
+# load required packages
+library(dplyr) # data cleaning
+library(rgdal) # read shapefiles
+library(ggplot2) # create plots
+library(maptools) # tools for mapping
+library(ggmap) # tools for mapping
+library(RColorBrewer) # pre-defined color ramps
+library(Cairo) # high quality output
+```
+
+## Data
+The `csv` file included with this tutorial was created by exporting an attribute table from a U.S. Census TIGER/Line shapefile containing all current Census Tracts in the City of St. Louis.
+
+The data (`countTested` and `pctElevated`) were obtained from the Reuters [report on lead poisoning](http://www.reuters.com/investigates/special-report/usa-lead-testing/) that was published on 19 Dec 2016. Each tract's data was copied from [Reuters' map](http://www.reuters.com/investigates/special-report/usa-lead-testing/#interactive-lead) to a `csv` file manually.
+
+`countTested` refers to the number of children screened for blood lead levels in the tract between 2010 and 2015. `pctElevated` is the percentage of children tested who had blood lead levels greater than or equal to 5 micrograms per deciliter. These were the original two values obtained from Reuters' reporting.
+
+```{r}
+lead <- read.csv("STLLead.csv", stringsAsFactors = FALSE)
+head(lead)
+```
+
+## Data Cleaning
+There are a number of geography variables that we do not need. We'll start by creating a variable named `id` that contains the `GEOID` data stored as character values. This will be important for mapping our lead level data. We'll then retain that new variable plus the `NAMELSAD` variable (useful for double-checking data) and our two data variables `countTested` and `pctElevated`.
+
+```{r}
+lead$id <- as.character(lead$GEOID) # reformat and rename GEOID
+lead$name <- lead$NAMELSAD # rename NAMELSAD
+
+# drop all variables except those listed
+lead <- select(lead, id, name, countTested, pctElevated)
+head(lead)
+```
+
+Next, we want to get the count of children with elevated blood lead levels rather than just the percentage:
+
+```{r}
+# create estimate of number of children with elevated blood lead levels
+lead$estElevated <- round((lead$pctElevated*.01)*lead$countTested, digits = 0)
+head(lead)
+```
+
+## Basic Mapping in `R`
+
+The first step for mapping lead levels is to import a shapefile that contains Census Tract boundaries for the City of St. Louis. This is done using the `rgdal` package. If you want to reference a shapefile located in another directory, you can specificy the file path using `dsn = "filePath"`. Otherwise, include the period as below to reference a shapefile stored in your working directory. 
+
+In the layer option, include the name of the shapefile *without the extension*.
+
+After loading the shapefile, use the `ggplot2` function `fortify()` to convert the data from a shapefile to a dataframe that we can plot using `ggplot2`. This will dramatically increase the number of observations, and will create a variable named `id` that includes the `GEOID` data specified under the `region` option below. This variable will be important for mapping our lead level data.
+
+```{r}
+# import shapefile
+tract <- readOGR(dsn = ".", layer = "STLTracts")
+
+# convert shapefile to dataframe
+tract <- fortify(tract, region="GEOID")
+```
+
+You can get a preview of the tract boundaries by using `ggplot2` to map them quickly. The following example also provides a basic example for how to generate maps. A major difference between the following code and a typical ggplot is that the initial `ggplot()` function does not have a data source or asthetic specified. Instead, those details are supplied within `geom_polygon()`. This geom is ideal for mapping polygon spatial data. As shown below, at a minimum you need to specify a data source, the x and y variables (typically `x = long, y = lat`), an a group variable that uniquely identifies individual polygons. 
+
+The `coord_map()` function is a tool included with `ggplot2` that gives you access to projected coordinate systems included in the package `mapproj`. If nothing is included in the function, it will use the Mercator projection by default.
+
+```{r}
+ggplot() + 
+  geom_polygon(data = tract, aes(x = long, y = lat, group = id)) + 
+  coord_map()
+```
+
+## Mapping the Joined the Lead and Tract Data
+
+To map the blood lead level data, we must first join it to the dataframe containing the tract polygons. We can do this using tools from `dplyr`, including the `left_join(dataSource, by "joinVar")` function. The `joinVar` should be identically named and stored in both dataframes. The pipe operator (`%>%`) allows us to join the data and immediately apply the combined dataset to a new dataframe.
+
+```{r}
+# join tables into new dataframe
+leadTracts <- tract %>% 
+  left_join(lead, by = "id")
+```
+
+With the data joined, we can now map the perctage of children in each Census Tract that have elevated blood lead levels. We add the `fill = variable` option to map the quanities stored in a specific variable: 
+
+```{r}
+ggplot() +
+    geom_polygon(data = leadTracts, aes(x = long, y = lat, group = id, fill = pctElevated)) +
+    coord_map()
+```
+
+This map has some issues, however. The color ramp is not intuitive - the darkest colors are low values, not high ones. We can use options included in `ggplot2` and `RColorBrewer` to adjust the fill. You can preview all of the available palattes using the `display.brewer.all()`. The `scale_fill_distiller()` is the function for continuous color scales. I've selected the `OrRd` palette and used `trans = "reverse"` to flip the color ramp so that the darkest colors correspond with the highest percentages of children with elevated blood lead levels.
+
+The plot has some other issues as well. The traditional ggplot background is distracting, and the latitude and longitude values are not helpful for a lay viewer. It is also missing helpful labels, like a title, subtitle, and caption. We can use the `theme()` function to adjust the appearance of all of these text elements. `hjust = 0.5` centers each text element. `size = rel(.75)` shrinks the relative size of the caption's text by 25%.
+
+```{r}
+# save final plot to object leadPlot
+leadPlot <- ggplot() +
+    geom_polygon(
+      data = leadTracts, 
+      aes(x = long, y = lat, group = id, fill = pctElevated), 
+      color = "black", size = 0.05) + 
+    scale_fill_distiller(palette = "OrRd", trans = "reverse") +
+    coord_map() +
+    theme_nothing(legend = TRUE) +
+    labs(
+      title = "Percentage of Children Tested\n with Blood Lead Levels >5µg/dL", 
+      subtitle = "St. Louis, Missouri",
+      fill = "", 
+      caption = "Data via Reuters and U.S. Census Bureau") +
+    theme(
+      plot.title = element_text(hjust = 0.5),
+      plot.subtitle = element_text(hjust = 0.5),
+      plot.caption=element_text(size = rel(.75), hjust=0.5))
+
+leadPlot # display plot
+```
+
+## Saving Map Output
+
+You can use the `ggsave()` function to save an already created plot:
+
+```{r}
+ggsave(leadPlot, file = "STLLead.png", width = 5, height = 5, type = "cairo-png")
+```
+
