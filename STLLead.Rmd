@@ -74,7 +74,7 @@ tract <- readOGR(dsn = ".", layer = "STLTracts")
 tract <- fortify(tract, region="GEOID")
 ```
 
-You can get a preview of the tract boundaries by using `ggplot2` to map them quickly. The following example also provides a basic example for how to generate maps. A major difference between the following code and a typical ggplot is that the initial `ggplot()` function does not have a data source or asthetic specified. Instead, those details are supplied within `geom_polygon()`. This geom is ideal for mapping polygon spatial data. As shown below, at a minimum you need to specify a data source, the x and y variables (typically `x = long, y = lat`), an a group variable that uniquely identifies individual polygons. 
+You can get a preview of the tract boundaries by using `ggplot2` to map them quickly. The following example also provides a basic example for how to generate maps. A major difference between the following code and a typical ggplot is that the initial `ggplot()` function does not have a data source or asthetic specified. Instead, those details are supplied within `geom_polygon()`. This geom is ideal for mapping polygon spatial data. As shown below, at a minimum you need to specify a data source, the x and y variables (typically `x = long, y = lat`), and a group variable that uniquely identifies individual polygons. 
 
 The `coord_map()` function is a tool included with `ggplot2` that gives you access to projected coordinate systems included in the package `mapproj`. If nothing is included in the function, it will use the Mercator projection by default.
 
