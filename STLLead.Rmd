@@ -21,7 +21,7 @@ library(dplyr) # data cleaning
 library(rgdal) # read shapefiles
 library(ggplot2) # create plots
 library(maptools) # tools for mapping
-library(ggmap) # tools for mapping
+# library(ggmap) # tools for mapping - CURRENTLY DOES NOT WORK DUE TO DEPRECIATED ELEMENTS
 library(RColorBrewer) # pre-defined color ramps
 library(Cairo) # high quality output
 ```
@@ -109,25 +109,26 @@ The plot has some other issues as well. The traditional ggplot background is dis
 ```{r}
 # save final plot to object leadPlot
 leadPlot <- ggplot() +
-    geom_polygon(
-      data = leadTracts, 
-      aes(x = long, y = lat, group = id, fill = pctElevated), 
-      color = "black", size = 0.05) + 
-    scale_fill_distiller(palette = "OrRd", trans = "reverse") +
-    coord_map() +
-    theme_nothing(legend = TRUE) +
-    labs(
-      title = "Percentage of Children Tested\n with Blood Lead Levels >5µg/dL", 
-      subtitle = "St. Louis, Missouri",
-      fill = "", 
-      caption = "Data via Reuters and U.S. Census Bureau") +
+  geom_polygon(
+    data = leadTracts, 
+    aes(x = long, y = lat, group = id, fill = pctElevated), 
+    color = "black", size = 0.05) + 
+  scale_fill_distiller(palette = "Greens", trans = "reverse") +
+  coord_map() +
+  theme_void() +
+  labs(
+    title = "Percentage of Children Tested\n with Blood Lead Levels >5µg/dL", 
+    subtitle = "St. Louis, Missouri",
+    fill = "", 
+    caption = "Data via Reuters and U.S. Census Bureau") +
     theme(
       plot.title = element_text(hjust = 0.5),
       plot.subtitle = element_text(hjust = 0.5),
       plot.caption=element_text(size = rel(.75), hjust=0.5))
-
-leadPlot # display plot
+leadPlot
 ```
+
+**Updated on September 26, 2017 to remove dependency on `ggmap`, which is currently broken. The `theme_void()` function is used instead of `ggmap`'s `theme_nothing(legend = TRUE)` function.**
 
 ## Saving Map Output
 
